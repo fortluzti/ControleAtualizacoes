@@ -97,6 +97,48 @@ if ($uri === '/api/auth/me' && $method === 'GET') {
     exit;
 }
 
+// Rotas de solicitações (protegidas)
+if (strpos($uri, '/api/solicitacoes') === 0) {
+    require_once BASE_PATH . '/app/Http/Controllers/SolicitacaoController.php';
+    $controller = new \App\Http\Controllers\SolicitacaoController();
+    
+    // GET /api/solicitacoes/opcoes - Opções para selects
+    if ($uri === '/api/solicitacoes/opcoes' && $method === 'GET') {
+        $controller->opcoes();
+        exit;
+    }
+    
+    // GET /api/solicitacoes - Listar
+    if ($uri === '/api/solicitacoes' && $method === 'GET') {
+        $controller->index();
+        exit;
+    }
+    
+    // POST /api/solicitacoes - Criar
+    if ($uri === '/api/solicitacoes' && $method === 'POST') {
+        $controller->store();
+        exit;
+    }
+    
+    // GET /api/solicitacoes/{id} - Visualizar
+    if (preg_match('#^/api/solicitacoes/(\d+)$#', $uri, $matches) && $method === 'GET') {
+        $controller->show((int) $matches[1]);
+        exit;
+    }
+    
+    // PUT /api/solicitacoes/{id} - Atualizar
+    if (preg_match('#^/api/solicitacoes/(\d+)$#', $uri, $matches) && $method === 'PUT') {
+        $controller->update((int) $matches[1]);
+        exit;
+    }
+    
+    // DELETE /api/solicitacoes/{id} - Excluir
+    if (preg_match('#^/api/solicitacoes/(\d+)$#', $uri, $matches) && $method === 'DELETE') {
+        $controller->destroy((int) $matches[1]);
+        exit;
+    }
+}
+
 // Se nenhuma rota corresponder, retorna 404
 http_response_code(404);
 header('Content-Type: application/json');

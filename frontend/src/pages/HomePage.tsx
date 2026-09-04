@@ -3,13 +3,16 @@
  */
 
 import { useAuth } from '../contexts/AuthContext';
+import { Link, useNavigate } from 'react-router-dom';
 import './HomePage.css';
 
 export function HomePage() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
-  const handleLogout = async () => {
-    await logout();
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   return (
@@ -22,6 +25,12 @@ export function HomePage() {
           </button>
         </div>
       </header>
+
+      <nav className="home-nav">
+        <Link to="/home" className="nav-link active">Início</Link>
+        <Link to="/solicitacoes" className="nav-link">Solicitações</Link>
+        <Link to="/solicitacoes/nova" className="nav-link">Nova Solicitação</Link>
+      </nav>
 
       <main className="home-main">
         <div className="welcome-card">
@@ -39,6 +48,18 @@ export function HomePage() {
             <div className="info-row">
               <span className="info-label">Perfil:</span>
               <span className="info-value perfil">{user?.perfil}</span>
+            </div>
+          </div>
+
+          <div className="quick-actions">
+            <h3>Ações Rápidas</h3>
+            <div className="action-buttons">
+              <Link to="/solicitacoes" className="action-button">
+                📋 Ver Solicitações
+              </Link>
+              <Link to="/solicitacoes/nova" className="action-button primary">
+                ➕ Nova Solicitação
+              </Link>
             </div>
           </div>
 

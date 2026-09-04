@@ -50,6 +50,72 @@
   box-sizing: border-box;
 }
 
+/* Navigation */
+.home-nav {
+  background: #34495e;
+  padding: 0 2rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.nav-link {
+  color: #ecf0f1;
+  text-decoration: none;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  border-bottom: 2px solid transparent;
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-link.active {
+  border-bottom-color: #667eea;
+  color: white;
+}
+
+/* Quick Actions */
+.quick-actions {
+  margin-bottom: 1.5rem;
+}
+
+.quick-actions h3 {
+  margin: 0 0 1rem;
+  color: #374151;
+  font-size: 1rem;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.action-button {
+  padding: 0.75rem 1.25rem;
+  background: #f3f4f6;
+  color: #374151;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.action-button:hover {
+  background: #e5e7eb;
+}
+
+.action-button.primary {
+  background: #667eea;
+  color: white;
+}
+
+.action-button.primary:hover {
+  background: #5a67d8;
+}
+
 .welcome-card {
   background: white;
   border-radius: 12px;

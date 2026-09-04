@@ -3,6 +3,10 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
+import { ListaSolicitacoesPage } from './pages/ListaSolicitacoesPage';
+import { NovaSolicitacaoPage } from './pages/NovaSolicitacaoPage';
+import { VisualizarSolicitacaoPage } from './pages/VisualizarSolicitacaoPage';
+import { EditarSolicitacaoPage } from './pages/EditarSolicitacaoPage';
 
 /**
  * Componente principal da aplicação
@@ -18,6 +22,38 @@ function App() {
             element={
               <ProtectedRoute>
                 <HomePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/solicitacoes"
+            element={
+              <ProtectedRoute>
+                <ListaSolicitacoesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/solicitacoes/nova"
+            element={
+              <ProtectedRoute>
+                <NovaSolicitacaoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/solicitacoes/:id"
+            element={
+              <ProtectedRoute>
+                <VisualizarSolicitacaoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/solicitacoes/:id/editar"
+            element={
+              <ProtectedRoute>
+                <EditarSolicitacaoPage />
               </ProtectedRoute>
             }
           />
