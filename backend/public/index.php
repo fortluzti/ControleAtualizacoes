@@ -14,6 +14,37 @@ define('BASE_PATH', dirname(__DIR__));
 // Carrega configurações
 require_once BASE_PATH . '/bootstrap/app.php';
 
+/**
+ * Configura headers CORS para permitir requisições do frontend de desenvolvimento.
+ * 
+ * Frontend Vite usa portas 5173+ ( próxima porta disponível).
+ * O header Authorization é necessário para Bearer Token.
+ */
+function setCorsHeaders(): void
+{
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+
+    // Verifica se é uma origem Vite válida (localhost:5173+)
+    if (preg_match('#^http://localhost:517\d+$#', $origin)) {
+        header("Access-Control-Allow-Origin: $origin");
+        header('Access-Control-Allow-Credentials: true');
+    }
+
+    // Headers permitidos
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+    header('Access-Control-Max-Age: 86400'); // 24 hours cache for preflight
+
+    // Para requisições OPTIONS, responder imediatamente
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        http_response_code(204);
+        exit;
+    }
+}
+
+// Aplicar CORS antes de qualquer outra coisa
+setCorsHeaders();
+
 // Autoloader simples
 spl_autoload_register(function ($class) {
     $prefix = 'App\\';
