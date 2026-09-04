@@ -1,0 +1,34 @@
+# Dependências
+frontend/node_modules/
+vendor/
+
+# Ambiente
+.env
+.env.local
+.env.*.local
+
+# Build
+frontend/dist/
+backend/public/build/
+
+# Logs
+*.log
+backend/storage/logs/*
+
+# Cache
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Backup
+*.bak
