@@ -9,6 +9,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Solicitacao;
+use App\Models\Historico;
 use App\Models\Token;
 use App\Models\User;
 
@@ -180,13 +181,473 @@ class SolicitacaoController
             return;
         }
 
-        // Atualizar
-        $solicitacao = $solicitacao->update($input);
+        // Atualizar (passa user ID para tracking de histórico se status mudou)
+        $solicitacao = $solicitacao->update($input, $user->id);
         $solicitacao->loadSolicitante();
 
         echo json_encode([
             'message' => 'Solicitação atualizada com sucesso',
             'data' => $solicitacao->toArray(true),
+        ]);
+    }
+
+    /**
+     * PUT /api/solicitacoes/{id}/status
+     * 
+     * Altera o status da solicitação com histórico.
+     */
+    public function alterarStatus(int $id): void
+    {
+        header('Content-Type: application/json');
+
+        $user = $this->authenticate();
+        if (!$user) {
+            return;
+        }
+
+        $solicitacao = Solicitacao::find($id);
+
+        if (!$solicitacao) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Solicitação não encontrada']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (empty($input) || empty($input['status'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Status é obrigatório']);
+            return;
+        }
+
+        $novoStatus = $input['status'];
+        $descricao = $input['descricao'] ?? null;
+
+        if (!in_array($novoStatus, Solicitacao::STATUS)) {
+            http_response_code(422);
+            echo json_encode(['error' => 'Status inválido']);
+            return;
+        }
+
+        if (!$solicitacao->alterarStatus($novoStatus, $user->id, $descricao)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao alterar status']);
+            return;
+        }
+
+        $solicitacao->loadSolicitante();
+
+        echo json_encode([
+            'message' => 'Status alterado com sucesso',
+            'data' => $solicitacao->toArray(true),
+        ]);
+    }
+
+    /**
+     * POST /api/solicitacoes/{id}/entrega
+     * 
+     * Registra uma entrega de atualização.
+     */
+    public function registrarEntrega(int $id): void
+    {
+        header('Content-Type: application/json');
+
+        $user = $this->authenticate();
+        if (!$user) {
+            return;
+        }
+
+        $solicitacao = Solicitacao::find($id);
+
+        if (!$solicitacao) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Solicitação não encontrada']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (empty($input) || empty($input['versao_entregue'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Versão entregue é obrigatória']);
+            return;
+        }
+
+        $versaoEntregue = trim($input['versao_entregue']);
+        $descricao = $input['descricao'] ?? null;
+        $responsavelSuporte = isset($input['responsavel_suporte']) ? trim($input['responsavel_suporte']) : null;
+
+        if (strlen($versaoEntregue) > 50) {
+            http_response_code(422);
+            echo json_encode(['error' => 'Versão entregue deve ter no máximo 50 caracteres']);
+            return;
+        }
+
+        if (!$solicitacao->registrarEntrega($user->id, $versaoEntregue, $descricao, $responsavelSuporte)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao registrar entrega']);
+            return;
+        }
+
+        $solicitacao->loadSolicitante();
+
+        echo json_encode([
+            'message' => 'Entrega registrada com sucesso',
+            'data' => $solicitacao->toArray(true),
+        ]);
+    }
+
+    /**
+     * POST /api/solicitacoes/{id}/teste
+     * 
+     * Registra o resultado de um teste.
+     */
+    public function registrarTeste(int $id): void
+    {
+        header('Content-Type: application/json');
+
+        $user = $this->authenticate();
+        if (!$user) {
+            return;
+        }
+
+        $solicitacao = Solicitacao::find($id);
+
+        if (!$solicitacao) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Solicitação não encontrada']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (empty($input) || empty($input['resultado'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Resultado é obrigatório']);
+            return;
+        }
+
+        $resultado = $input['resultado'];
+        $observacao = isset($input['observacao']) ? trim($input['observacao']) : null;
+        $versaoTestada = isset($input['versao_testada']) ? trim($input['versao_testada']) : null;
+
+        if (!in_array($resultado, Historico::RESULTADOS_TESTE)) {
+            http_response_code(422);
+            echo json_encode(['error' => 'Resultado inválido']);
+            return;
+        }
+
+        if (!$solicitacao->registrarTeste($user->id, $resultado, $observacao, $versaoTestada)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao registrar teste']);
+            return;
+        }
+
+        $solicitacao->loadSolicitante();
+
+        echo json_encode([
+            'message' => 'Teste registrado com sucesso',
+            'data' => $solicitacao->toArray(true),
+        ]);
+    }
+
+    /**
+     * POST /api/solicitacoes/{id}/atendimento
+     * 
+     * Registra o início do atendimento pelo suporte.
+     */
+    public function registrarAtendimento(int $id): void
+    {
+        header('Content-Type: application/json');
+
+        $user = $this->authenticate();
+        if (!$user) {
+            return;
+        }
+
+        $solicitacao = Solicitacao::find($id);
+
+        if (!$solicitacao) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Solicitação não encontrada']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (empty($input) || empty($input['responsavel_suporte'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Responsável do suporte é obrigatório']);
+            return;
+        }
+
+        $responsavelSuporte = trim($input['responsavel_suporte']);
+        $descricao = isset($input['descricao']) ? trim($input['descricao']) : null;
+
+        if (strlen($responsavelSuporte) > 100) {
+            http_response_code(422);
+            echo json_encode(['error' => 'Nome do responsável deve ter no máximo 100 caracteres']);
+            return;
+        }
+
+        if (!$solicitacao->registrarAtendimentoIniciado($user->id, $responsavelSuporte, $descricao)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao registrar atendimento']);
+            return;
+        }
+
+        $solicitacao->loadSolicitante();
+
+        echo json_encode([
+            'message' => 'Atendimento registrado com sucesso',
+            'data' => $solicitacao->toArray(true),
+        ]);
+    }
+
+    /**
+     * POST /api/solicitacoes/{id}/enviar-suporte
+     * 
+     * Registra o envio da solicitação ao suporte.
+     */
+    public function enviarSuporte(int $id): void
+    {
+        header('Content-Type: application/json');
+
+        $user = $this->authenticate();
+        if (!$user) {
+            return;
+        }
+
+        $solicitacao = Solicitacao::find($id);
+
+        if (!$solicitacao) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Solicitação não encontrada']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $descricao = isset($input['descricao']) ? trim($input['descricao']) : null;
+
+        if (!$solicitacao->registrarEnviadaSuporte($user->id, $descricao)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao enviar para suporte']);
+            return;
+        }
+
+        $solicitacao->loadSolicitante();
+
+        echo json_encode([
+            'message' => 'Enviada ao suporte com sucesso',
+            'data' => $solicitacao->toArray(true),
+        ]);
+    }
+
+    /**
+     * POST /api/solicitacoes/{id}/reabrir
+     * 
+     * Registra a reabertura da solicitação.
+     */
+    public function reabrir(int $id): void
+    {
+        header('Content-Type: application/json');
+
+        $user = $this->authenticate();
+        if (!$user) {
+            return;
+        }
+
+        $solicitacao = Solicitacao::find($id);
+
+        if (!$solicitacao) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Solicitação não encontrada']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $descricao = isset($input['descricao']) ? trim($input['descricao']) : null;
+
+        if (!$solicitacao->registrarReabertura($user->id, $descricao)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao reabrir solicitação']);
+            return;
+        }
+
+        $solicitacao->loadSolicitante();
+
+        echo json_encode([
+            'message' => 'Solicitação reaberta com sucesso',
+            'data' => $solicitacao->toArray(true),
+        ]);
+    }
+
+    /**
+     * POST /api/solicitacoes/{id}/cancelar
+     * 
+     * Registra o cancelamento da solicitação.
+     */
+    public function cancelar(int $id): void
+    {
+        header('Content-Type: application/json');
+
+        $user = $this->authenticate();
+        if (!$user) {
+            return;
+        }
+
+        $solicitacao = Solicitacao::find($id);
+
+        if (!$solicitacao) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Solicitação não encontrada']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $descricao = isset($input['descricao']) ? trim($input['descricao']) : null;
+
+        if (!$solicitacao->registrarCancelamento($user->id, $descricao)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao cancelar solicitação']);
+            return;
+        }
+
+        $solicitacao->loadSolicitante();
+
+        echo json_encode([
+            'message' => 'Solicitação cancelada com sucesso',
+            'data' => $solicitacao->toArray(true),
+        ]);
+    }
+
+    /**
+     * POST /api/solicitacoes/{id}/encerrar
+     * 
+     * Registra o encerramento da solicitação.
+     */
+    public function encerrar(int $id): void
+    {
+        header('Content-Type: application/json');
+
+        $user = $this->authenticate();
+        if (!$user) {
+            return;
+        }
+
+        $solicitacao = Solicitacao::find($id);
+
+        if (!$solicitacao) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Solicitação não encontrada']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $descricao = isset($input['descricao']) ? trim($input['descricao']) : null;
+
+        if (!$solicitacao->registrarEncerramento($user->id, $descricao)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao encerrar solicitação']);
+            return;
+        }
+
+        $solicitacao->loadSolicitante();
+
+        echo json_encode([
+            'message' => 'Solicitação encerrada com sucesso',
+            'data' => $solicitacao->toArray(true),
+        ]);
+    }
+
+    /**
+     * POST /api/solicitacoes/{id}/observacao
+     * 
+     * Adiciona uma observação ao histórico.
+     */
+    public function adicionarObservacao(int $id): void
+    {
+        header('Content-Type: application/json');
+
+        $user = $this->authenticate();
+        if (!$user) {
+            return;
+        }
+
+        $solicitacao = Solicitacao::find($id);
+
+        if (!$solicitacao) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Solicitação não encontrada']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (empty($input) || empty($input['observacao'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Observação é obrigatória']);
+            return;
+        }
+
+        $observacao = trim($input['observacao']);
+
+        if (strlen($observacao) > 5000) {
+            http_response_code(422);
+            echo json_encode(['error' => 'Observação deve ter no máximo 5000 caracteres']);
+            return;
+        }
+
+        if (!$solicitacao->adicionarObservacao($user->id, $observacao)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao adicionar observação']);
+            return;
+        }
+
+        $solicitacao->loadSolicitante();
+
+        echo json_encode([
+            'message' => 'Observação adicionada com sucesso',
+            'data' => $solicitacao->toArray(true),
+        ]);
+    }
+
+    /**
+     * GET /api/solicitacoes/{id}/historico
+     * 
+     * Retorna o histórico da solicitação.
+     */
+    public function historico(int $id): void
+    {
+        header('Content-Type: application/json');
+
+        $user = $this->authenticate();
+        if (!$user) {
+            return;
+        }
+
+        $solicitacao = Solicitacao::find($id);
+
+        if (!$solicitacao) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Solicitação não encontrada']);
+            return;
+        }
+
+        $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
+
+        $historicos = Historico::listBySolicitacao($id, $order);
+
+        // Carrega usuários
+        foreach ($historicos as $historico) {
+            $historico->loadUsuario();
+        }
+
+        $data = array_map(fn($h) => $h->toArray(true), $historicos);
+
+        echo json_encode([
+            'data' => $data,
         ]);
     }
 

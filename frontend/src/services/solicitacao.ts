@@ -65,6 +65,56 @@ export interface OpcoesResponse {
   status: Record<string, string>;
 }
 
+export interface Historico {
+  id: number;
+  solicitacao_id: number;
+  usuario_id: number;
+  responsavel_suporte: string | null;
+  evento: string;
+  evento_label: string;
+  status_anterior: string | null;
+  status_anterior_label: string | null;
+  status_novo: string | null;
+  status_novo_label: string | null;
+  descricao: string | null;
+  observacao: string | null;
+  versao_erp: string | null;
+  resultado_teste: string | null;
+  resultado_teste_label: string | null;
+  data_hora_evento: string;
+  created_at: string;
+  updated_at: string;
+  usuario?: {
+    id: number;
+    username: string;
+    nome: string;
+  };
+}
+
+export type ResultadoTeste = 'FUNCIONOU' | 'FUNCIONOU_COM_RESSALVA' | 'NAO_FUNCIONOU';
+
+export interface EntregaData {
+  versao_entregue: string;
+  descricao?: string;
+  responsavel_suporte?: string;
+}
+
+export interface TesteData {
+  resultado: ResultadoTeste;
+  observacao?: string;
+  versao_testada?: string;
+}
+
+export interface AtendimentoData {
+  responsavel_suporte: string;
+  descricao?: string;
+}
+
+export interface StatusChangeData {
+  status: string;
+  descricao?: string;
+}
+
 interface ApiError {
   error?: string;
   errors?: string[];
@@ -174,6 +224,136 @@ export const solicitacaoService = {
     }
 
     return { data: response.data };
+  },
+
+  /**
+   * Busca o histórico de uma solicitação.
+   */
+  async getHistorico(solicitacaoId: number): Promise<{ data?: Historico[]; error?: string }> {
+    const response = await api.get<{ data: Historico[] }>(`/solicitacoes/${solicitacaoId}/historico`);
+
+    if (response.error) {
+      return { error: response.error };
+    }
+
+    return { data: response.data?.data };
+  },
+
+  /**
+   * Altera o status da solicitação.
+   */
+  async alterarStatus(id: number, data: StatusChangeData): Promise<{ data?: Solicitacao; error?: string }> {
+    const response = await api.post<{ data: Solicitacao; message: string }>(`/solicitacoes/${id}/status`, data);
+
+    if (response.error) {
+      return { error: response.error };
+    }
+
+    return { data: (response.data as { data: Solicitacao })?.data };
+  },
+
+  /**
+   * Registra entrega de atualização.
+   */
+  async registrarEntrega(id: number, data: EntregaData): Promise<{ data?: Solicitacao; error?: string }> {
+    const response = await api.post<{ data: Solicitacao; message: string }>(`/solicitacoes/${id}/entrega`, data);
+
+    if (response.error) {
+      return { error: response.error };
+    }
+
+    return { data: (response.data as { data: Solicitacao })?.data };
+  },
+
+  /**
+   * Registra resultado de teste.
+   */
+  async registrarTeste(id: number, data: TesteData): Promise<{ data?: Solicitacao; error?: string }> {
+    const response = await api.post<{ data: Solicitacao; message: string }>(`/solicitacoes/${id}/teste`, data);
+
+    if (response.error) {
+      return { error: response.error };
+    }
+
+    return { data: (response.data as { data: Solicitacao })?.data };
+  },
+
+  /**
+   * Registra atendimento do suporte.
+   */
+  async registrarAtendimento(id: number, data: AtendimentoData): Promise<{ data?: Solicitacao; error?: string }> {
+    const response = await api.post<{ data: Solicitacao; message: string }>(`/solicitacoes/${id}/atendimento`, data);
+
+    if (response.error) {
+      return { error: response.error };
+    }
+
+    return { data: (response.data as { data: Solicitacao })?.data };
+  },
+
+  /**
+   * Envia para o suporte.
+   */
+  async enviarSuporte(id: number, descricao?: string): Promise<{ data?: Solicitacao; error?: string }> {
+    const response = await api.post<{ data: Solicitacao; message: string }>(`/solicitacoes/${id}/enviar-suporte`, { descricao });
+
+    if (response.error) {
+      return { error: response.error };
+    }
+
+    return { data: (response.data as { data: Solicitacao })?.data };
+  },
+
+  /**
+   * Reabre a solicitação.
+   */
+  async reabrir(id: number, descricao?: string): Promise<{ data?: Solicitacao; error?: string }> {
+    const response = await api.post<{ data: Solicitacao; message: string }>(`/solicitacoes/${id}/reabrir`, { descricao });
+
+    if (response.error) {
+      return { error: response.error };
+    }
+
+    return { data: (response.data as { data: Solicitacao })?.data };
+  },
+
+  /**
+   * Cancela a solicitação.
+   */
+  async cancelar(id: number, descricao?: string): Promise<{ data?: Solicitacao; error?: string }> {
+    const response = await api.post<{ data: Solicitacao; message: string }>(`/solicitacoes/${id}/cancelar`, { descricao });
+
+    if (response.error) {
+      return { error: response.error };
+    }
+
+    return { data: (response.data as { data: Solicitacao })?.data };
+  },
+
+  /**
+   * Encerra a solicitação.
+   */
+  async encerrar(id: number, descricao?: string): Promise<{ data?: Solicitacao; error?: string }> {
+    const response = await api.post<{ data: Solicitacao; message: string }>(`/solicitacoes/${id}/encerrar`, { descricao });
+
+    if (response.error) {
+      return { error: response.error };
+    }
+
+    return { data: (response.data as { data: Solicitacao })?.data };
+  },
+
+  /**
+   * Adiciona observação.
+   */
+  async adicionarObservacao(id: number, observacao: string): Promise<{ data?: Solicitacao; error?: string }> {
+    const response = await api.post<{ data: Solicitacao; message: string }>(`/solicitacoes/${id}/observacao`, { observacao });
+
+    if (response.error) {
+      return { error: response.error };
+    }
+
+    return { data: (response.data as { data: Solicitacao })?.data };
   },
 };
 

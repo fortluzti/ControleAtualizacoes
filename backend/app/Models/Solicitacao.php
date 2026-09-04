@@ -218,13 +218,26 @@ class Solicitacao
             ]
         );
 
-        return self::find((int) Database::lastInsertId());
+        $solicitacao = self::find((int) Database::lastInsertId());
+
+        // Cria o registro inicial de histórico
+        if ($solicitacao) {
+            Historico::create([
+                'solicitacao_id' => $solicitacao->id,
+                'usuario_id' => $solicitanteId,
+                'evento' => Historico::EVENTO_SOLICITACAO_CRIADA,
+                'descricao' => 'Solicitação criada',
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        return $solicitacao;
     }
 
     /**
      * Atualiza uma solicitação existente.
      */
-    public function update(array $data): self
+    public function update(array $data, ?int $userId = null): self
     {
         $fields = [];
         $params = ['id' => $this->id];
@@ -232,10 +245,18 @@ class Solicitacao
         // Campos que podem ser editados nesta fase
         $editableFields = ['titulo', 'descricao', 'tipo', 'prioridade', 'status', 'versao_erp', 'observacoes'];
 
+        $statusChanged = false;
+        $oldStatus = $this->status;
+
         foreach ($editableFields as $field) {
             if (array_key_exists($field, $data)) {
                 $fields[] = "$field = :$field";
                 $params[$field] = $data[$field];
+
+                // Verifica se o status mudou
+                if ($field === 'status' && $data['status'] !== $this->status) {
+                    $statusChanged = true;
+                }
             }
         }
 
@@ -245,7 +266,359 @@ class Solicitacao
             Database::query($sql, $params);
         }
 
+        // Se o status mudou e temos usuário, criar histórico
+        if ($statusChanged && $userId) {
+            $newStatus = $data['status'];
+            Historico::create([
+                'solicitacao_id' => $this->id,
+                'usuario_id' => $userId,
+                'evento' => Historico::EVENTO_STATUS_ALTERADO,
+                'status_anterior' => $oldStatus,
+                'status_novo' => $newStatus,
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
         return self::find($this->id);
+    }
+
+    /**
+     * Atualiza o status com criação automática de histórico (transacional).
+     * Retorna true em caso de sucesso, false em caso de falha.
+     */
+    public function alterarStatus(string $novoStatus, int $userId, ?string $descricao = null): bool
+    {
+        $statusAnterior = $this->status;
+
+        // Valida o novo status
+        if (!in_array($novoStatus, self::STATUS)) {
+            return false;
+        }
+
+        // Se não mudou, não faz nada
+        if ($statusAnterior === $novoStatus) {
+            return true;
+        }
+
+        try {
+            Database::beginTransaction();
+
+            // Atualiza o status na solicitação
+            Database::query(
+                'UPDATE solicitacoes SET status = :status, updated_at = NOW() WHERE id = :id',
+                ['status' => $novoStatus, 'id' => $this->id]
+            );
+
+            // Cria o registro de histórico
+            Historico::create([
+                'solicitacao_id' => $this->id,
+                'usuario_id' => $userId,
+                'evento' => Historico::EVENTO_STATUS_ALTERADO,
+                'status_anterior' => $statusAnterior,
+                'status_novo' => $novoStatus,
+                'descricao' => $descricao,
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+
+            Database::commit();
+
+            // Atualiza o status em memória
+            $this->status = $novoStatus;
+
+            return true;
+        } catch (\Exception $e) {
+            Database::rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Registra uma entrega de atualização.
+     */
+    public function registrarEntrega(int $userId, string $versaoEntregue, ?string $descricao = null, ?string $responsavelSuporte = null): bool
+    {
+        try {
+            Database::beginTransaction();
+
+            // Atualiza status para ENTREGUE
+            Database::query(
+                'UPDATE solicitacoes SET status = :status, updated_at = NOW() WHERE id = :id',
+                ['status' => 'ENTREGUE', 'id' => $this->id]
+            );
+
+            // Cria o registro de histórico
+            Historico::create([
+                'solicitacao_id' => $this->id,
+                'usuario_id' => $userId,
+                'evento' => Historico::EVENTO_ATUALIZACAO_ENTREGUE,
+                'status_anterior' => $this->status,
+                'status_novo' => 'ENTREGUE',
+                'descricao' => $descricao,
+                'versao_erp' => $versaoEntregue,
+                'responsavel_suporte' => $responsavelSuporte,
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+
+            Database::commit();
+
+            $this->status = 'ENTREGUE';
+
+            return true;
+        } catch (\Exception $e) {
+            Database::rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Registra o resultado de um teste.
+     */
+    public function registrarTeste(int $userId, string $resultado, ?string $observacao = null, ?string $versaoTestada = null): bool
+    {
+        // Valida o resultado
+        if (!in_array($resultado, Historico::RESULTADOS_TESTE)) {
+            return false;
+        }
+
+        // Determina o novo status baseado no resultado
+        $novoStatus = match($resultado) {
+            'FUNCIONOU' => 'FUNCIONOU',
+            'FUNCIONOU_COM_RESSALVA' => 'FUNCIONOU_COM_RESSALVA',
+            'NAO_FUNCIONOU' => 'NAO_FUNCIONOU',
+        };
+
+        try {
+            Database::beginTransaction();
+
+            // Atualiza status na solicitação
+            Database::query(
+                'UPDATE solicitacoes SET status = :status, updated_at = NOW() WHERE id = :id',
+                ['status' => $novoStatus, 'id' => $this->id]
+            );
+
+            // Cria o registro de histórico
+            Historico::create([
+                'solicitacao_id' => $this->id,
+                'usuario_id' => $userId,
+                'evento' => Historico::EVENTO_TESTE_REALIZADO,
+                'status_anterior' => $this->status,
+                'status_novo' => $novoStatus,
+                'resultado_teste' => $resultado,
+                'observacao' => $observacao,
+                'versao_erp' => $versaoTestada,
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+
+            Database::commit();
+
+            $this->status = $novoStatus;
+
+            return true;
+        } catch (\Exception $e) {
+            Database::rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Registra o início do atendimento pelo suporte.
+     */
+    public function registrarAtendimentoIniciado(int $userId, string $responsavelSuporte, ?string $descricao = null): bool
+    {
+        try {
+            Database::beginTransaction();
+
+            // Atualiza status para EM_ANALISE
+            Database::query(
+                'UPDATE solicitacoes SET status = :status, updated_at = NOW() WHERE id = :id',
+                ['status' => 'EM_ANALISE', 'id' => $this->id]
+            );
+
+            // Cria o registro de histórico
+            Historico::create([
+                'solicitacao_id' => $this->id,
+                'usuario_id' => $userId,
+                'evento' => Historico::EVENTO_ATENDIMENTO_INICIADO,
+                'status_anterior' => $this->status,
+                'status_novo' => 'EM_ANALISE',
+                'responsavel_suporte' => $responsavelSuporte,
+                'descricao' => $descricao,
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+
+            Database::commit();
+
+            $this->status = 'EM_ANALISE';
+
+            return true;
+        } catch (\Exception $e) {
+            Database::rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Registra o envio ao suporte.
+     */
+    public function registrarEnviadaSuporte(int $userId, ?string $descricao = null): bool
+    {
+        try {
+            Database::beginTransaction();
+
+            // Atualiza status para ENVIADA_AO_SUPORTE
+            Database::query(
+                'UPDATE solicitacoes SET status = :status, updated_at = NOW() WHERE id = :id',
+                ['status' => 'ENVIADA_AO_SUPORTE', 'id' => $this->id]
+            );
+
+            // Cria o registro de histórico
+            Historico::create([
+                'solicitacao_id' => $this->id,
+                'usuario_id' => $userId,
+                'evento' => Historico::EVENTO_ENVIADA_SUPORTE,
+                'status_anterior' => $this->status,
+                'status_novo' => 'ENVIADA_AO_SUPORTE',
+                'descricao' => $descricao,
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+
+            Database::commit();
+
+            $this->status = 'ENVIADA_AO_SUPORTE';
+
+            return true;
+        } catch (\Exception $e) {
+            Database::rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Registra uma reabertura da solicitação.
+     */
+    public function registrarReabertura(int $userId, ?string $descricao = null): bool
+    {
+        try {
+            Database::beginTransaction();
+
+            // Atualiza status para REABERTA
+            Database::query(
+                'UPDATE solicitacoes SET status = :status, updated_at = NOW() WHERE id = :id',
+                ['status' => 'REABERTA', 'id' => $this->id]
+            );
+
+            // Cria o registro de histórico
+            Historico::create([
+                'solicitacao_id' => $this->id,
+                'usuario_id' => $userId,
+                'evento' => Historico::EVENTO_SOLICITACAO_REABERTA,
+                'status_anterior' => $this->status,
+                'status_novo' => 'REABERTA',
+                'descricao' => $descricao,
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+
+            Database::commit();
+
+            $this->status = 'REABERTA';
+
+            return true;
+        } catch (\Exception $e) {
+            Database::rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Registra cancelamento da solicitação.
+     */
+    public function registrarCancelamento(int $userId, ?string $descricao = null): bool
+    {
+        try {
+            Database::beginTransaction();
+
+            // Atualiza status para CANCELADA
+            Database::query(
+                'UPDATE solicitacoes SET status = :status, updated_at = NOW() WHERE id = :id',
+                ['status' => 'CANCELADA', 'id' => $this->id]
+            );
+
+            // Cria o registro de histórico
+            Historico::create([
+                'solicitacao_id' => $this->id,
+                'usuario_id' => $userId,
+                'evento' => Historico::EVENTO_SOLICITACAO_CANCELADA,
+                'status_anterior' => $this->status,
+                'status_novo' => 'CANCELADA',
+                'descricao' => $descricao,
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+
+            Database::commit();
+
+            $this->status = 'CANCELADA';
+
+            return true;
+        } catch (\Exception $e) {
+            Database::rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Registra encerramento da solicitação.
+     */
+    public function registrarEncerramento(int $userId, ?string $descricao = null): bool
+    {
+        try {
+            Database::beginTransaction();
+
+            // Atualiza status para ENCERRADA
+            Database::query(
+                'UPDATE solicitacoes SET status = :status, updated_at = NOW() WHERE id = :id',
+                ['status' => 'ENCERRADA', 'id' => $this->id]
+            );
+
+            // Cria o registro de histórico
+            Historico::create([
+                'solicitacao_id' => $this->id,
+                'usuario_id' => $userId,
+                'evento' => Historico::EVENTO_SOLICITACAO_ENCERRADA,
+                'status_anterior' => $this->status,
+                'status_novo' => 'ENCERRADA',
+                'descricao' => $descricao,
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+
+            Database::commit();
+
+            $this->status = 'ENCERRADA';
+
+            return true;
+        } catch (\Exception $e) {
+            Database::rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Adiciona uma observação ao histórico.
+     */
+    public function adicionarObservacao(int $userId, string $observacao): bool
+    {
+        try {
+            Historico::create([
+                'solicitacao_id' => $this->id,
+                'usuario_id' => $userId,
+                'evento' => Historico::EVENTO_OBSERVACAO_ADICIONADA,
+                'observacao' => $observacao,
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     /**

@@ -120,6 +120,66 @@ if (strpos($uri, '/api/solicitacoes') === 0) {
         exit;
     }
     
+    // GET /api/solicitacoes/{id}/historico - Histórico
+    if (preg_match('#^/api/solicitacoes/(\d+)/historico$#', $uri, $matches) && $method === 'GET') {
+        $controller->historico((int) $matches[1]);
+        exit;
+    }
+    
+    // POST /api/solicitacoes/{id}/status - Alterar status
+    if (preg_match('#^/api/solicitacoes/(\d+)/status$#', $uri, $matches) && $method === 'POST') {
+        $controller->alterarStatus((int) $matches[1]);
+        exit;
+    }
+    
+    // POST /api/solicitacoes/{id}/entrega - Registrar entrega
+    if (preg_match('#^/api/solicitacoes/(\d+)/entrega$#', $uri, $matches) && $method === 'POST') {
+        $controller->registrarEntrega((int) $matches[1]);
+        exit;
+    }
+    
+    // POST /api/solicitacoes/{id}/teste - Registrar teste
+    if (preg_match('#^/api/solicitacoes/(\d+)/teste$#', $uri, $matches) && $method === 'POST') {
+        $controller->registrarTeste((int) $matches[1]);
+        exit;
+    }
+    
+    // POST /api/solicitacoes/{id}/atendimento - Registrar atendimento
+    if (preg_match('#^/api/solicitacoes/(\d+)/atendimento$#', $uri, $matches) && $method === 'POST') {
+        $controller->registrarAtendimento((int) $matches[1]);
+        exit;
+    }
+    
+    // POST /api/solicitacoes/{id}/enviar-suporte - Enviar ao suporte
+    if (preg_match('#^/api/solicitacoes/(\d+)/enviar-suporte$#', $uri, $matches) && $method === 'POST') {
+        $controller->enviarSuporte((int) $matches[1]);
+        exit;
+    }
+    
+    // POST /api/solicitacoes/{id}/reabrir - Reabrir
+    if (preg_match('#^/api/solicitacoes/(\d+)/reabrir$#', $uri, $matches) && $method === 'POST') {
+        $controller->reabrir((int) $matches[1]);
+        exit;
+    }
+    
+    // POST /api/solicitacoes/{id}/cancelar - Cancelar
+    if (preg_match('#^/api/solicitacoes/(\d+)/cancelar$#', $uri, $matches) && $method === 'POST') {
+        $controller->cancelar((int) $matches[1]);
+        exit;
+    }
+    
+    // POST /api/solicitacoes/{id}/encerrar - Encerrar
+    if (preg_match('#^/api/solicitacoes/(\d+)/encerrar$#', $uri, $matches) && $method === 'POST') {
+        $controller->encerrar((int) $matches[1]);
+        exit;
+    }
+    
+    // POST /api/solicitacoes/{id}/observacao - Adicionar observação
+    if (preg_match('#^/api/solicitacoes/(\d+)/observacao$#', $uri, $matches) && $method === 'POST') {
+        $controller->adicionarObservacao((int) $matches[1]);
+        exit;
+    }
+    
     // GET /api/solicitacoes/{id} - Visualizar
     if (preg_match('#^/api/solicitacoes/(\d+)$#', $uri, $matches) && $method === 'GET') {
         $controller->show((int) $matches[1]);
