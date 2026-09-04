@@ -36,7 +36,7 @@ O processo atual apresenta desafios como:
 - **Sem controle formal** sobre resultados de testes e validações
 - **Problemas de comunicação** entre as equipes interna e externa
 
-O ControleAtualizacoes visa resolver esses problemas, oferecendo uma ferramenta centralizeda para gerenciar todo o ciclo de vida das solicitações.
+O ControleAtualizacoes visa resolver esses problemas, oferecendo uma ferramenta centralizada para gerenciar todo o ciclo de vida das solicitações.
 
 ---
 
@@ -68,8 +68,8 @@ O ControleAtualizacoes visa resolver esses problemas, oferecendo uma ferramenta 
 
 ### 4.3 Testes e Validação
 
-- Registro de результаdos de testes internos
-- Opções de результат: Funcionou, Funcionou com ressalva, Não funcionou, Não foi possível testar
+- Registro de resultados de testes internos
+- Opções de resultado: Funcionou, Funcionou com ressalva, Não funcionou, Não foi possível testar
 - Registro da descrição da ressalva quando aplicável
 - Registro do problema encontrado quando não funciona
 - Reabertura de solicitações para novo atendimento
@@ -162,7 +162,7 @@ O workflow do sistema contempla os seguintes status:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-A aplicação é baseada em uma arquitetura cliente-servidor, com frontend e backend separados, communicating através de uma API REST.
+A aplicação é baseada em uma arquitetura cliente-servidor, com frontend e backend separados, comunicando através de uma API REST.
 
 ---
 
@@ -239,7 +239,7 @@ As instruções detalhadas de instalação serão documentadas após a conclusã
 ### Requisitos Previstos
 
 - Node.js (versão a ser definida)
-- PHP (versão compatí vel com Laravel a ser definida)
+- PHP (versão compatível com Laravel a ser definida)
 - Composer
 - MySQL (versão a ser definida)
 - Git
@@ -411,7 +411,7 @@ As migrations do banco de dados serão criadas na **Fase 1** do projeto.
 | Perfil | Descrição |
 |--------|-----------|
 | Administrador | Acesso completo ao sistema |
-| Gestor | Gestión de solicitudes y approval |
+| Gestor | Gestão de solicitações e aprovação |
 | Solicitante | Pode criar e acompanhar solicitudes propias |
 | Suporte | Atendimento e atualização de solicitudes |
 
