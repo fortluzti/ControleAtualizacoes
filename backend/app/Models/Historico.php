@@ -15,6 +15,7 @@ class Historico
     public int $id;
     public int $solicitacao_id;
     public int $usuario_id;
+    public ?int $responsavel_suporte_id;
     public ?string $responsavel_suporte;
     public string $evento;
     public ?string $status_anterior;
@@ -30,6 +31,7 @@ class Historico
     // Relacionamentos
     public ?User $usuario = null;
     public ?Solicitacao $solicitacao = null;
+    public ?ResponsavelSuporte $responsavel_suporte = null;
 
     // Tipos de evento
     public const EVENTO_SOLICITACAO_CRIADA = 'SOLICITACAO_CRIADA';
@@ -43,6 +45,7 @@ class Historico
     public const EVENTO_SOLICITACAO_REABERTA = 'SOLICITACAO_REABERTA';
     public const EVENTO_SOLICITACAO_CANCELADA = 'SOLICITACAO_CANCELADA';
     public const EVENTO_SOLICITACAO_ENCERRADA = 'SOLICITACAO_ENCERRADA';
+    public const EVENTO_RESPONSAVEL_ATRIBUIDO = 'RESPONSAVEL_ATRIBUIDO';
 
     // Lista de todos os eventos
     public const EVENTOS = [
@@ -57,6 +60,7 @@ class Historico
         self::EVENTO_SOLICITACAO_REABERTA,
         self::EVENTO_SOLICITACAO_CANCELADA,
         self::EVENTO_SOLICITACAO_ENCERRADA,
+        self::EVENTO_RESPONSAVEL_ATRIBUIDO,
     ];
 
     // Labels legíveis para eventos
@@ -72,6 +76,7 @@ class Historico
         self::EVENTO_SOLICITACAO_REABERTA => 'Solicitação reaberta',
         self::EVENTO_SOLICITACAO_CANCELADA => 'Solicitação cancelada',
         self::EVENTO_SOLICITACAO_ENCERRADA => 'Solicitação encerrada',
+        self::EVENTO_RESPONSAVEL_ATRIBUIDO => 'Responsável atribuído',
     ];
 
     // Resultados de teste válidos
@@ -129,12 +134,13 @@ class Historico
     public static function create(array $data): self
     {
         $stmt = Database::query(
-            'INSERT INTO solicitacao_historicos 
-             (solicitacao_id, usuario_id, responsavel_suporte, evento, status_anterior, status_novo, descricao, observacao, versao_erp, resultado_teste, data_hora_evento, created_at, updated_at) 
-             VALUES (:solicitacao_id, :usuario_id, :responsavel_suporte, :evento, :status_anterior, :status_novo, :descricao, :observacao, :versao_erp, :resultado_teste, :data_hora_evento, NOW(), NOW())',
+            'INSERT INTO solicitacao_historicos
+             (solicitacao_id, usuario_id, responsavel_suporte_id, responsavel_suporte, evento, status_anterior, status_novo, descricao, observacao, versao_erp, resultado_teste, data_hora_evento, created_at, updated_at)
+             VALUES (:solicitacao_id, :usuario_id, :responsavel_suporte_id, :responsavel_suporte, :evento, :status_anterior, :status_novo, :descricao, :observacao, :versao_erp, :resultado_teste, :data_hora_evento, NOW(), NOW())',
             [
                 'solicitacao_id' => $data['solicitacao_id'],
                 'usuario_id' => $data['usuario_id'],
+                'responsavel_suporte_id' => $data['responsavel_suporte_id'] ?? null,
                 'responsavel_suporte' => $data['responsavel_suporte'] ?? null,
                 'evento' => $data['evento'],
                 'status_anterior' => $data['status_anterior'] ?? null,
@@ -167,6 +173,16 @@ class Historico
     }
 
     /**
+     * Carrega o responsável do suporte relacionado.
+     */
+    public function loadResponsavelSuporte(): void
+    {
+        if ($this->responsavel_suporte_id) {
+            $this->responsavel_suporte = ResponsavelSuporte::find($this->responsavel_suporte_id);
+        }
+    }
+
+    /**
      * Retorna dados do histórico em array.
      */
     public function toArray(bool $includeRelations = false): array
@@ -175,6 +191,7 @@ class Historico
             'id' => $this->id,
             'solicitacao_id' => $this->solicitacao_id,
             'usuario_id' => $this->usuario_id,
+            'responsavel_suporte_id' => $this->responsavel_suporte_id,
             'responsavel_suporte' => $this->responsavel_suporte,
             'evento' => $this->evento,
             'evento_label' => self::EVENTOS_LABELS[$this->evento] ?? $this->evento,
@@ -199,6 +216,9 @@ class Historico
             if ($this->solicitacao) {
                 $data['solicitacao'] = $this->solicitacao->toArray();
             }
+            if ($this->responsavel_suporte) {
+                $data['responsavel_suporte'] = $this->responsavel_suporte->toArray();
+            }
         }
 
         return $data;
@@ -213,7 +233,8 @@ class Historico
         $historico->id = (int) $data['id'];
         $historico->solicitacao_id = (int) $data['solicitacao_id'];
         $historico->usuario_id = (int) $data['usuario_id'];
-        $historico->responsavel_suporte = $data['responsavel_suporte'];
+        $historico->responsavel_suporte_id = isset($data['responsavel_suporte_id']) ? (int) $data['responsavel_suporte_id'] : null;
+        $historico->responsavel_suporte = $data['responsavel_suporte'] ?? null;
         $historico->evento = $data['evento'];
         $historico->status_anterior = $data['status_anterior'];
         $historico->status_novo = $data['status_novo'];

@@ -248,6 +248,31 @@
   color: #667eea;
 }
 
+.responsavel-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-assign-responsavel {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.btn-assign-responsavel:hover {
+  background: #5a67d8;
+}
+
+.btn-assign-responsavel:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
 /* Field Groups */
 .field-group {
   margin-bottom: 1rem;

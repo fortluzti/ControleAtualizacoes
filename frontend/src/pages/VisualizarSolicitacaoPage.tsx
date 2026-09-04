@@ -4,7 +4,8 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { solicitacaoService, type Solicitacao, type Historico } from '../services/solicitacao';
+import { solicitacaoService, type Solicitacao, type Historico, type ResponsavelSuporte } from '../services/solicitacao';
+import responsaveisService from '../services/responsaveis';
 import { useAuth } from '../contexts/AuthContext';
 import './VisualizarSolicitacaoPage.css';
 
@@ -12,6 +13,7 @@ export function VisualizarSolicitacaoPage() {
   const { id } = useParams<{ id: string }>();
   const [solicitacao, setSolicitacao] = useState<Solicitacao | null>(null);
   const [historico, setHistorico] = useState<Historico[]>([]);
+  const [responsaveis, setResponsaveis] = useState<ResponsavelSuporte[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
@@ -21,6 +23,7 @@ export function VisualizarSolicitacaoPage() {
   const [showAtendimentoModal, setShowAtendimentoModal] = useState(false);
   const [showObservacaoModal, setShowObservacaoModal] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
+  const [showResponsavelModal, setShowResponsavelModal] = useState(false);
   const [actionType, setActionType] = useState<'reabrir' | 'cancelar' | 'encerrar' | 'enviar' | null>(null);
   const [descricao, setDescricao] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,9 +42,10 @@ export function VisualizarSolicitacaoPage() {
     setLoading(true);
     setError('');
 
-    const [solicitacaoResult, historicoResult] = await Promise.all([
+    const [solicitacaoResult, historicoResult, responsaveisResult] = await Promise.all([
       solicitacaoService.get(solicitacaoId),
       solicitacaoService.getHistorico(solicitacaoId),
+      responsaveisService.listarAtivos(),
     ]);
 
     setLoading(false);
@@ -57,6 +61,10 @@ export function VisualizarSolicitacaoPage() {
 
     if (historicoResult.data) {
       setHistorico(historicoResult.data);
+    }
+
+    if (responsaveisResult.data) {
+      setResponsaveis(responsaveisResult.data);
     }
   };
 
@@ -118,6 +126,7 @@ export function VisualizarSolicitacaoPage() {
       case 'SOLICITACAO_REABERTA': return '↩️';
       case 'SOLICITACAO_CANCELADA': return '❌';
       case 'SOLICITACAO_ENCERRADA': return '🔒';
+      case 'RESPONSAVEL_ATRIBUIDO': return '👤';
       default: return '📋';
     }
   };
@@ -154,6 +163,7 @@ export function VisualizarSolicitacaoPage() {
         id: Date.now(),
         solicitacao_id: parseInt(id, 10),
         usuario_id: user?.id ?? 0,
+        responsavel_suporte_id: null,
         responsavel_suporte: null,
         evento: actionType === 'reabrir' ? 'SOLICITACAO_REABERTA' : actionType === 'cancelar' ? 'SOLICITACAO_CANCELADA' : actionType === 'encerrar' ? 'SOLICITACAO_ENCERRADA' : 'ENVIADA_SUPORTE',
         evento_label: actionType === 'reabrir' ? 'Solicitação reaberta' : actionType === 'cancelar' ? 'Solicitação cancelada' : actionType === 'encerrar' ? 'Solicitação encerrada' : 'Enviada ao suporte',
@@ -277,6 +287,19 @@ export function VisualizarSolicitacaoPage() {
                   <span>{solicitacao.solicitante?.nome ?? '-'}</span>
                 </div>
                 <div className="info-item">
+                  <label>Responsável Suporte</label>
+                  <div className="responsavel-display">
+                    <span>{solicitacao.responsavel_suporte?.nome ?? '-'}</span>
+                    <button
+                      className="btn-assign-responsavel"
+                      onClick={() => setShowResponsavelModal(true)}
+                      disabled={['CANCELADA', 'ENCERRADA'].includes(solicitacao.status)}
+                    >
+                      {solicitacao.responsavel_suporte ? 'Alterar' : 'Atribuir'}
+                    </button>
+                  </div>
+                </div>
+                <div className="info-item">
                   <label>Criado em</label>
                   <span>{formatDate(solicitacao.created_at)}</span>
                 </div>
@@ -380,7 +403,7 @@ export function VisualizarSolicitacaoPage() {
                           <p className="timeline-observacao">{item.observacao}</p>
                         )}
                         {item.responsavel_suporte && (
-                          <p className="timeline-info"><strong>Responsável:</strong> {item.responsavel_suporte}</p>
+                          <p className="timeline-info"><strong>Responsável:</strong> {typeof item.responsavel_suporte === 'string' ? item.responsavel_suporte : (item.responsavel_suporte as any).nome}</p>
                         )}
                         {item.versao_erp && (
                           <p className="timeline-info"><strong>Versão:</strong> {item.versao_erp}</p>
@@ -468,6 +491,7 @@ export function VisualizarSolicitacaoPage() {
       {showAtendimentoModal && (
         <AtendimentoModal
           solicitacaoId={parseInt(id ?? '0', 10)}
+          responsaveis={responsaveis}
           onClose={() => setShowAtendimentoModal(false)}
           onSuccess={(novoHistorico, novoStatus) => {
             setHistorico([...historico, novoHistorico]);
@@ -482,6 +506,7 @@ export function VisualizarSolicitacaoPage() {
       {showEntregaModal && (
         <EntregaModal
           solicitacaoId={parseInt(id ?? '0', 10)}
+          responsaveis={responsaveis}
           onClose={() => setShowEntregaModal(false)}
           onSuccess={(novoHistorico, novoStatus) => {
             setHistorico([...historico, novoHistorico]);
@@ -501,6 +526,22 @@ export function VisualizarSolicitacaoPage() {
             setHistorico([...historico, novoHistorico]);
             if (novoStatus) setSolicitacao({ ...solicitacao, status: novoStatus.status, status_label: novoStatus.status_label });
             setShowTesteModal(false);
+          }}
+          user={user}
+        />
+      )}
+
+      {/* Responsavel Modal */}
+      {showResponsavelModal && (
+        <ResponsavelModal
+          solicitacaoId={parseInt(id ?? '0', 10)}
+          responsaveis={responsaveis}
+          responsavelAtual={solicitacao.responsavel_suporte}
+          onClose={() => setShowResponsavelModal(false)}
+          onSuccess={(novoHistorico, novaSolicitacao) => {
+            setHistorico([...historico, novoHistorico]);
+            if (novaSolicitacao) setSolicitacao(novaSolicitacao);
+            setShowResponsavelModal(false);
           }}
           user={user}
         />
@@ -537,6 +578,7 @@ function ObservacaoModal({ solicitacaoId, onClose, onSuccess, user }: {
         id: Date.now(),
         solicitacao_id: solicitacaoId,
         usuario_id: user?.id ?? 0,
+        responsavel_suporte_id: null,
         responsavel_suporte: null,
         evento: 'OBSERVACAO_ADICIONADA',
         evento_label: 'Observação adicionada',
@@ -584,25 +626,28 @@ function ObservacaoModal({ solicitacaoId, onClose, onSuccess, user }: {
 }
 
 // Atendimento Modal Component
-function AtendimentoModal({ solicitacaoId, onClose, onSuccess, user }: {
+function AtendimentoModal({ solicitacaoId, responsaveis, onClose, onSuccess, user }: {
   solicitacaoId: number;
+  responsaveis: ResponsavelSuporte[];
   onClose: () => void;
   onSuccess: (historico: Historico, status?: { status: string; status_label: string }) => void;
   user: any;
 }) {
-  const [responsavel, setResponsavel] = useState('');
+  const [responsavelId, setResponsavelId] = useState<string>('');
   const [descricao, setDescricao] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
-    if (!responsavel.trim()) return;
+    if (!responsavelId) return;
 
     setIsSubmitting(true);
     setError('');
 
+    const selectedResponsavel = responsaveis.find(r => r.id === parseInt(responsavelId, 10));
+
     const result = await solicitacaoService.registrarAtendimento(solicitacaoId, {
-      responsavel_suporte: responsavel,
+      responsavel_suporte_id: parseInt(responsavelId, 10),
       descricao: descricao || undefined,
     });
 
@@ -615,7 +660,8 @@ function AtendimentoModal({ solicitacaoId, onClose, onSuccess, user }: {
         id: Date.now(),
         solicitacao_id: solicitacaoId,
         usuario_id: user?.id ?? 0,
-        responsavel_suporte: responsavel,
+        responsavel_suporte_id: parseInt(responsavelId, 10),
+        responsavel_suporte: selectedResponsavel ?? responsavelId,
         evento: 'ATENDIMENTO_INICIADO',
         evento_label: 'Atendimento iniciado',
         status_anterior: 'ENVIADA_AO_SUPORTE',
@@ -642,12 +688,16 @@ function AtendimentoModal({ solicitacaoId, onClose, onSuccess, user }: {
         {error && <div className="error-message">{error}</div>}
         <div className="form-group">
           <label>Responsável do Suporte *</label>
-          <input
-            type="text"
-            value={responsavel}
-            onChange={(e) => setResponsavel(e.target.value)}
-            placeholder="Nome do responsável pelo suporte"
-          />
+          <select
+            value={responsavelId}
+            onChange={(e) => setResponsavelId(e.target.value)}
+            autoFocus
+          >
+            <option value="">Selecione um responsável...</option>
+            {responsaveis.map((r) => (
+              <option key={r.id} value={r.id}>{r.nome} {r.empresa ? `(${r.empresa})` : ''}</option>
+            ))}
+          </select>
         </div>
         <div className="form-group">
           <label>Descrição (opcional)</label>
@@ -659,7 +709,7 @@ function AtendimentoModal({ solicitacaoId, onClose, onSuccess, user }: {
           />
         </div>
         <div className="modal-actions">
-          <button className="btn-confirm" onClick={handleSubmit} disabled={isSubmitting || !responsavel.trim()}>
+          <button className="btn-confirm" onClick={handleSubmit} disabled={isSubmitting || !responsavelId}>
             {isSubmitting ? 'Aguarde...' : 'Confirmar'}
           </button>
           <button className="btn-cancel" onClick={onClose}>Cancelar</button>
@@ -670,15 +720,16 @@ function AtendimentoModal({ solicitacaoId, onClose, onSuccess, user }: {
 }
 
 // Entrega Modal Component
-function EntregaModal({ solicitacaoId, onClose, onSuccess, user }: {
+function EntregaModal({ solicitacaoId, responsaveis, onClose, onSuccess, user }: {
   solicitacaoId: number;
+  responsaveis: ResponsavelSuporte[];
   onClose: () => void;
   onSuccess: (historico: Historico, status?: { status: string; status_label: string }) => void;
   user: any;
 }) {
   const [versao, setVersao] = useState('');
   const [descricao, setDescricao] = useState('');
-  const [responsavel, setResponsavel] = useState('');
+  const [responsavelId, setResponsavelId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -688,10 +739,12 @@ function EntregaModal({ solicitacaoId, onClose, onSuccess, user }: {
     setIsSubmitting(true);
     setError('');
 
+    const selectedResponsavel = responsavelId ? responsaveis.find(r => r.id === parseInt(responsavelId, 10)) : null;
+
     const result = await solicitacaoService.registrarEntrega(solicitacaoId, {
       versao_entregue: versao,
       descricao: descricao || undefined,
-      responsavel_suporte: responsavel || undefined,
+      responsavel_suporte: selectedResponsavel?.nome || undefined,
     });
 
     setIsSubmitting(false);
@@ -703,7 +756,8 @@ function EntregaModal({ solicitacaoId, onClose, onSuccess, user }: {
         id: Date.now(),
         solicitacao_id: solicitacaoId,
         usuario_id: user?.id ?? 0,
-        responsavel_suporte: responsavel || null,
+        responsavel_suporte_id: responsavelId ? parseInt(responsavelId, 10) : null,
+        responsavel_suporte: selectedResponsavel ?? (responsavelId || null),
         evento: 'ATUALIZACAO_ENTREGUE',
         evento_label: 'Atualização entregue',
         status_anterior: result.data.status,
@@ -740,12 +794,15 @@ function EntregaModal({ solicitacaoId, onClose, onSuccess, user }: {
         </div>
         <div className="form-group">
           <label>Responsável (opcional)</label>
-          <input
-            type="text"
-            value={responsavel}
-            onChange={(e) => setResponsavel(e.target.value)}
-            placeholder="Nome do responsável pela entrega"
-          />
+          <select
+            value={responsavelId}
+            onChange={(e) => setResponsavelId(e.target.value)}
+          >
+            <option value="">Selecione um responsável...</option>
+            {responsaveis.map((r) => (
+              <option key={r.id} value={r.id}>{r.nome} {r.empresa ? `(${r.empresa})` : ''}</option>
+            ))}
+          </select>
         </div>
         <div className="form-group">
           <label>Descrição (opcional)</label>
@@ -802,6 +859,7 @@ function TesteModal({ solicitacaoId, onClose, onSuccess, user }: {
         id: Date.now(),
         solicitacao_id: solicitacaoId,
         usuario_id: user?.id ?? 0,
+        responsavel_suporte_id: null,
         responsavel_suporte: null,
         evento: 'TESTE_REALIZADO',
         evento_label: 'Teste realizado',
@@ -856,6 +914,97 @@ function TesteModal({ solicitacaoId, onClose, onSuccess, user }: {
         </div>
         <div className="modal-actions">
           <button className="btn-confirm" onClick={handleSubmit} disabled={isSubmitting || !resultado}>
+            {isSubmitting ? 'Aguarde...' : 'Confirmar'}
+          </button>
+          <button className="btn-cancel" onClick={onClose}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Responsavel Modal Component
+function ResponsavelModal({ solicitacaoId, responsaveis, responsavelAtual, onClose, onSuccess, user }: {
+  solicitacaoId: number;
+  responsaveis: ResponsavelSuporte[];
+  responsavelAtual: ResponsavelSuporte | null | undefined;
+  onClose: () => void;
+  onSuccess: (historico: Historico, solicitacao?: Solicitacao) => void;
+  user: any;
+}) {
+  const [responsavelId, setResponsavelId] = useState<string>(responsavelAtual?.id?.toString() ?? '');
+  const [descricao, setDescricao] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    if (!responsavelId) return;
+
+    setIsSubmitting(true);
+    setError('');
+
+    const result = await solicitacaoService.atribuirResponsavel(solicitacaoId, parseInt(responsavelId, 10), descricao || undefined);
+
+    setIsSubmitting(false);
+
+    if (result.error) {
+      setError(result.error);
+    } else if (result.data) {
+      const selectedResponsavel = responsaveis.find(r => r.id === parseInt(responsavelId, 10));
+      onSuccess({
+        id: Date.now(),
+        solicitacao_id: solicitacaoId,
+        usuario_id: user?.id ?? 0,
+        responsavel_suporte_id: parseInt(responsavelId, 10),
+        responsavel_suporte: selectedResponsavel ?? responsavelId,
+        evento: 'RESPONSAVEL_ATRIBUIDO',
+        evento_label: 'Responsável atribuído',
+        status_anterior: null,
+        status_anterior_label: null,
+        status_novo: null,
+        status_novo_label: null,
+        descricao: descricao || null,
+        observacao: null,
+        versao_erp: null,
+        resultado_teste: null,
+        resultado_teste_label: null,
+        data_hora_evento: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        usuario: user ? { id: user.id, username: user.username, nome: user.nome } : undefined,
+      }, result.data);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Atribuir Responsável do Suporte</h3>
+        {error && <div className="error-message">{error}</div>}
+        <div className="form-group">
+          <label>Responsável</label>
+          <select
+            value={responsavelId}
+            onChange={(e) => setResponsavelId(e.target.value)}
+            autoFocus
+          >
+            <option value="">Selecione um responsável...</option>
+            {responsaveis.map((r) => (
+              <option key={r.id} value={r.id}>{r.nome} {r.empresa ? `(${r.empresa})` : ''}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Descrição (opcional)</label>
+          <textarea
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            placeholder="Motivo da alteração..."
+            rows={3}
+          />
+        </div>
+        <div className="modal-actions">
+          <button className="btn-confirm" onClick={handleSubmit} disabled={isSubmitting || !responsavelId}>
             {isSubmitting ? 'Aguarde...' : 'Confirmar'}
           </button>
           <button className="btn-cancel" onClick={onClose}>Cancelar</button>

@@ -20,6 +20,7 @@ class Solicitacao
     public string $prioridade;
     public string $status;
     public int $solicitante_id;
+    public ?int $responsavel_suporte_id;
     public string $versao_erp;
     public ?string $observacoes;
     public string $created_at;
@@ -28,6 +29,9 @@ class Solicitacao
 
     // Relacionamento com solicitante (carregado manualmente)
     public ?User $solicitante = null;
+    
+    // Relacionamento com responsável do suporte (carregado manualmente)
+    public ?ResponsavelSuporte $responsavel_suporte = null;
 
     // Tipos válidos
     public const TIPOS = ['CORRECAO', 'ALTERACAO', 'MELHORIA', 'DUVIDA'];
@@ -423,25 +427,31 @@ class Solicitacao
     /**
      * Registra o início do atendimento pelo suporte.
      */
-    public function registrarAtendimentoIniciado(int $userId, string $responsavelSuporte, ?string $descricao = null): bool
+    public function registrarAtendimentoIniciado(int $userId, ?int $responsavelSuporteId = null, ?string $descricao = null): bool
     {
         try {
             Database::beginTransaction();
 
-            // Atualiza status para EM_ANALISE
-            Database::query(
-                'UPDATE solicitacoes SET status = :status, updated_at = NOW() WHERE id = :id',
-                ['status' => 'EM_ANALISE', 'id' => $this->id]
-            );
+            // Atualiza status e responsável para EM_ANALISE
+            $sql = 'UPDATE solicitacoes SET status = :status';
+            $params = ['status' => 'EM_ANALISE', 'id' => $this->id];
+            
+            if ($responsavelSuporteId) {
+                $sql .= ', responsavel_suporte_id = :responsavel_suporte_id';
+                $params['responsavel_suporte_id'] = $responsavelSuporteId;
+            }
+            
+            $sql .= ', updated_at = NOW() WHERE id = :id';
+            Database::query($sql, $params);
 
             // Cria o registro de histórico
             Historico::create([
                 'solicitacao_id' => $this->id,
                 'usuario_id' => $userId,
+                'responsavel_suporte_id' => $responsavelSuporteId,
                 'evento' => Historico::EVENTO_ATENDIMENTO_INICIADO,
                 'status_anterior' => $this->status,
                 'status_novo' => 'EM_ANALISE',
-                'responsavel_suporte' => $responsavelSuporte,
                 'descricao' => $descricao,
                 'data_hora_evento' => date('Y-m-d H:i:s'),
             ]);
@@ -449,6 +459,48 @@ class Solicitacao
             Database::commit();
 
             $this->status = 'EM_ANALISE';
+            if ($responsavelSuporteId) {
+                $this->responsavel_suporte_id = $responsavelSuporteId;
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            Database::rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Atribui um responsável do suporte à solicitação.
+     */
+    public function atribuirResponsavel(int $userId, int $responsavelSuporteId, ?string $descricao = null): bool
+    {
+        try {
+            Database::beginTransaction();
+
+            // Atualiza o responsável na solicitação
+            Database::query(
+                'UPDATE solicitacoes SET responsavel_suporte_id = :responsavel_suporte_id, updated_at = NOW() WHERE id = :id',
+                ['responsavel_suporte_id' => $responsavelSuporteId, 'id' => $this->id]
+            );
+
+            // Carrega o responsável para o histórico
+            $responsavel = ResponsavelSuporte::find($responsavelSuporteId);
+            $responsavelNome = $responsavel ? $responsavel->nome : "ID: $responsavelSuporteId";
+
+            // Cria o registro de histórico
+            Historico::create([
+                'solicitacao_id' => $this->id,
+                'usuario_id' => $userId,
+                'responsavel_suporte_id' => $responsavelSuporteId,
+                'evento' => Historico::EVENTO_RESPONSAVEL_ATRIBUIDO,
+                'descricao' => $descricao ?? "Responsável atribuído: $responsavelNome",
+                'data_hora_evento' => date('Y-m-d H:i:s'),
+            ]);
+
+            Database::commit();
+
+            $this->responsavel_suporte_id = $responsavelSuporteId;
 
             return true;
         } catch (\Exception $e) {
@@ -643,9 +695,19 @@ class Solicitacao
     }
 
     /**
+     * Carrega o responsável do suporte.
+     */
+    public function loadResponsavelSuporte(): void
+    {
+        if ($this->responsavel_suporte_id) {
+            $this->responsavel_suporte = ResponsavelSuporte::find($this->responsavel_suporte_id);
+        }
+    }
+
+    /**
      * Retorna dados da solicitação em array.
      */
-    public function toArray(bool $includeSolicitante = false): array
+    public function toArray(bool $includeRelations = false): array
     {
         $data = [
             'id' => $this->id,
@@ -659,6 +721,7 @@ class Solicitacao
             'status' => $this->status,
             'status_label' => self::STATUS_LABELS[$this->status] ?? $this->status,
             'solicitante_id' => $this->solicitante_id,
+            'responsavel_suporte_id' => $this->responsavel_suporte_id,
             'versao_erp' => $this->versao_erp,
             'observacoes' => $this->observacoes,
             'created_at' => $this->created_at,
@@ -666,8 +729,13 @@ class Solicitacao
             'deleted_at' => $this->deleted_at,
         ];
 
-        if ($includeSolicitante && $this->solicitante) {
-            $data['solicitante'] = $this->solicitante->toArray();
+        if ($includeRelations) {
+            if ($this->solicitante) {
+                $data['solicitante'] = $this->solicitante->toArray();
+            }
+            if ($this->responsavel_suporte) {
+                $data['responsavel_suporte'] = $this->responsavel_suporte->toArray();
+            }
         }
 
         return $data;
@@ -687,6 +755,7 @@ class Solicitacao
         $solicitacao->prioridade = $data['prioridade'];
         $solicitacao->status = $data['status'];
         $solicitacao->solicitante_id = (int) $data['solicitante_id'];
+        $solicitacao->responsavel_suporte_id = isset($data['responsavel_suporte_id']) ? (int) $data['responsavel_suporte_id'] : null;
         $solicitacao->versao_erp = $data['versao_erp'];
         $solicitacao->observacoes = $data['observacoes'];
         $solicitacao->created_at = $data['created_at'];

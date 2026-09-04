@@ -705,6 +705,62 @@ class SolicitacaoController
     }
 
     /**
+     * POST /api/solicitacoes/{id}/atribuir-responsavel
+     * 
+     * Atribui um responsável do suporte à solicitação.
+     */
+    public function atribuirResponsavel(int $id): void
+    {
+        header('Content-Type: application/json');
+
+        $user = $this->authenticate();
+        if (!$user) {
+            return;
+        }
+
+        $solicitacao = Solicitacao::find($id);
+
+        if (!$solicitacao) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Solicitação não encontrada']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (empty($input) || empty($input['responsavel_suporte_id'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ID do responsável é obrigatório']);
+            return;
+        }
+
+        $responsavelId = (int) $input['responsavel_suporte_id'];
+        $descricao = $input['descricao'] ?? null;
+
+        // Verifica se o responsável existe
+        $responsavel = \App\Models\ResponsavelSuporte::find($responsavelId);
+        if (!$responsavel) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Responsável não encontrado']);
+            return;
+        }
+
+        if (!$solicitacao->atribuirResponsavel($user->id, $responsavelId, $descricao)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao atribuir responsável']);
+            return;
+        }
+
+        $solicitacao->loadSolicitante();
+        $solicitacao->loadResponsavelSuporte();
+
+        echo json_encode([
+            'message' => 'Responsável atribuído com sucesso',
+            'data' => $solicitacao->toArray(true),
+        ]);
+    }
+
+    /**
      * Autentica o usuário via Bearer token.
      * Retorna o usuário ou responde com erro 401.
      */

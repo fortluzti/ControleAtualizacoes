@@ -4,6 +4,18 @@
 
 import api from './api';
 
+export interface ResponsavelSuporte {
+  id: number;
+  nome: string;
+  telefone: string | null;
+  email: string | null;
+  empresa: string | null;
+  observacoes: string | null;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Solicitacao {
   id: number;
   numero: string;
@@ -16,6 +28,7 @@ export interface Solicitacao {
   status: string;
   status_label: string;
   solicitante_id: number;
+  responsavel_suporte_id: number | null;
   versao_erp: string;
   observacoes: string | null;
   created_at: string;
@@ -26,6 +39,7 @@ export interface Solicitacao {
     username: string;
     nome: string;
   };
+  responsavel_suporte?: ResponsavelSuporte | null;
 }
 
 export interface SolicitacaoCreate {
@@ -69,7 +83,8 @@ export interface Historico {
   id: number;
   solicitacao_id: number;
   usuario_id: number;
-  responsavel_suporte: string | null;
+  responsavel_suporte_id: number | null;
+  responsavel_suporte: ResponsavelSuporte | string | null;
   evento: string;
   evento_label: string;
   status_anterior: string | null;
@@ -89,6 +104,7 @@ export interface Historico {
     username: string;
     nome: string;
   };
+  responsavel_suporte_detalhes?: ResponsavelSuporte;
 }
 
 export type ResultadoTeste = 'FUNCIONOU' | 'FUNCIONOU_COM_RESSALVA' | 'NAO_FUNCIONOU';
@@ -106,7 +122,8 @@ export interface TesteData {
 }
 
 export interface AtendimentoData {
-  responsavel_suporte: string;
+  responsavel_suporte?: string;
+  responsavel_suporte_id?: number;
   descricao?: string;
 }
 
@@ -348,6 +365,22 @@ export const solicitacaoService = {
    */
   async adicionarObservacao(id: number, observacao: string): Promise<{ data?: Solicitacao; error?: string }> {
     const response = await api.post<{ data: Solicitacao; message: string }>(`/solicitacoes/${id}/observacao`, { observacao });
+
+    if (response.error) {
+      return { error: response.error };
+    }
+
+    return { data: (response.data as { data: Solicitacao })?.data };
+  },
+
+  /**
+   * Atribui responsável do suporte.
+   */
+  async atribuirResponsavel(id: number, responsavelSuporteId: number, descricao?: string): Promise<{ data?: Solicitacao; error?: string }> {
+    const response = await api.post<{ data: Solicitacao; message: string }>(`/solicitacoes/${id}/atribuir-responsavel`, {
+      responsavel_suporte_id: responsavelSuporteId,
+      descricao,
+    });
 
     if (response.error) {
       return { error: response.error };

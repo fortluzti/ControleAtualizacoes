@@ -180,6 +180,12 @@ if (strpos($uri, '/api/solicitacoes') === 0) {
         exit;
     }
     
+    // POST /api/solicitacoes/{id}/atribuir-responsavel - Atribuir responsável
+    if (preg_match('#^/api/solicitacoes/(\d+)/atribuir-responsavel$#', $uri, $matches) && $method === 'POST') {
+        $controller->atribuirResponsavel((int) $matches[1]);
+        exit;
+    }
+    
     // GET /api/solicitacoes/{id} - Visualizar
     if (preg_match('#^/api/solicitacoes/(\d+)$#', $uri, $matches) && $method === 'GET') {
         $controller->show((int) $matches[1]);
@@ -195,6 +201,54 @@ if (strpos($uri, '/api/solicitacoes') === 0) {
     // DELETE /api/solicitacoes/{id} - Excluir
     if (preg_match('#^/api/solicitacoes/(\d+)$#', $uri, $matches) && $method === 'DELETE') {
         $controller->destroy((int) $matches[1]);
+        exit;
+    }
+}
+
+// Rotas de responsáveis do suporte (protegidas)
+if (strpos($uri, '/api/responsaveis-suporte') === 0) {
+    require_once BASE_PATH . '/app/Http/Controllers/ResponsavelSuporteController.php';
+    $controller = new \App\Http\Controllers\ResponsavelSuporteController();
+    
+    // GET /api/responsaveis-suporte - Listar todos
+    if ($uri === '/api/responsaveis-suporte' && $method === 'GET') {
+        $controller->index();
+        exit;
+    }
+    
+    // GET /api/responsaveis-suporte/ativos - Listar ativos
+    if ($uri === '/api/responsaveis-suporte/ativos' && $method === 'GET') {
+        $controller->ativos();
+        exit;
+    }
+    
+    // POST /api/responsaveis-suporte - Criar
+    if ($uri === '/api/responsaveis-suporte' && $method === 'POST') {
+        $controller->store();
+        exit;
+    }
+    
+    // GET /api/responsaveis-suporte/{id} - Visualizar
+    if (preg_match('#^/api/responsaveis-suporte/(\d+)$#', $uri, $matches) && $method === 'GET') {
+        $controller->show((int) $matches[1]);
+        exit;
+    }
+    
+    // PUT /api/responsaveis-suporte/{id} - Atualizar
+    if (preg_match('#^/api/responsaveis-suporte/(\d+)$#', $uri, $matches) && $method === 'PUT') {
+        $controller->update((int) $matches[1]);
+        exit;
+    }
+    
+    // POST /api/responsaveis-suporte/{id}/ativar
+    if (preg_match('#^/api/responsaveis-suporte/(\d+)/ativar$#', $uri, $matches) && $method === 'POST') {
+        $controller->ativar((int) $matches[1]);
+        exit;
+    }
+    
+    // POST /api/responsaveis-suporte/{id}/desativar
+    if (preg_match('#^/api/responsaveis-suporte/(\d+)/desativar$#', $uri, $matches) && $method === 'POST') {
+        $controller->desativar((int) $matches[1]);
         exit;
     }
 }
